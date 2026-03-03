@@ -316,7 +316,8 @@ public class ClaudeAdapter extends ProtocolAdapter {
     @Override
     public boolean supportsModel(String model) {
         if (model == null) return false;
-        return SUPPORTED_MODELS.stream().anyMatch(model::toLowerCase()::contains);
+        String lowerModel = model.toLowerCase();
+        return SUPPORTED_MODELS.stream().anyMatch(lowerModel::contains);
     }
 
     // Helper methods
