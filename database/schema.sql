@@ -41,22 +41,34 @@ CREATE TABLE IF NOT EXISTS api_keys (
     INDEX idx_key_prefix (key_prefix)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='API密钥表';
 
--- 凭证表
+-- 凭证表 (AK/SK管理 - 用于会议、助手和CUI后端)
 CREATE TABLE IF NOT EXISTS credentials (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '凭证ID',
+    user_id BIGINT NOT NULL COMMENT '用户ID',
     name VARCHAR(100) NOT NULL COMMENT '凭证名称',
-    type VARCHAR(50) NOT NULL COMMENT '凭证类型: api_key, oauth, basic',
-    provider VARCHAR(50) NOT NULL COMMENT '提供商: openai, anthropic, google',
-    encrypted_value TEXT NOT NULL COMMENT '加密后的凭证值',
-    encryption_key_id VARCHAR(100) COMMENT '加密密钥ID',
-    metadata JSON COMMENT '额外元数据',
+    type VARCHAR(50) NOT NULL COMMENT '凭证类型: meeting(会议), assistant(助手), cui_backend(CUI后端)',
+    access_key VARCHAR(100) NOT NULL UNIQUE COMMENT 'Access Key (AK) - 公开的访问标识',
+    secret_key_hash VARCHAR(255) NOT NULL COMMENT 'Secret Key (SK) - 加密存储的密钥哈希',
+    encryption_key_id VARCHAR(100) COMMENT 'SK加密密钥ID',
+    resource_id BIGINT COMMENT '关联的资源ID (会议ID/助手ID/CUI后端ID)',
+    permissions JSON COMMENT '权限范围 (JSON格式)',
+    rate_limit INT DEFAULT 100 COMMENT '速率限制 (请求/分钟)',
+    ip_whitelist JSON COMMENT 'IP白名单 (JSON数组)',
+    enabled BOOLEAN DEFAULT TRUE COMMENT '是否启用',
     expires_at TIMESTAMP NULL COMMENT '过期时间',
+    last_used_at TIMESTAMP NULL COMMENT '最后使用时间',
+    usage_count BIGINT DEFAULT 0 COMMENT '使用次数',
+    description VARCHAR(500) COMMENT '描述',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT DEFAULT 0 COMMENT '逻辑删除标记',
-    INDEX idx_provider (provider),
-    INDEX idx_type (type)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='凭证表';
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_type (type),
+    INDEX idx_access_key (access_key),
+    INDEX idx_resource_id (resource_id),
+    INDEX idx_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='凭证表(AK/SK管理)';
 
 -- 连接配置表
 CREATE TABLE IF NOT EXISTS connections (
