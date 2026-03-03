@@ -12,10 +12,14 @@
 - React Router (路由)
 - Axios (HTTP客户端)
 - React Markdown (Markdown渲染)
+- STOMP over WebSocket (实时通信)
+- OpenCode Plugin SDK (插件集成)
 
 ### 后端
 - Spring Boot 3.2
 - Java 17
+- Spring Cloud Gateway (API网关)
+- Spring WebSocket + STOMP (实时通信)
 - MyBatis-Plus (ORM)
 - Spring Security + JWT (认证授权)
 - Spring Kafka (消息队列)

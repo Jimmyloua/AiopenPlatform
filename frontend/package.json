@@ -21,12 +21,15 @@
     "remark-gfm": "^4.0.0",
     "highlight.js": "^11.9.0",
     "dayjs": "^1.11.10",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "@stomp/stompjs": "^7.0.0",
+    "sockjs-client": "^1.6.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "@types/uuid": "^9.0.7",
+    "@types/sockjs-client": "^1.5.4",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.2.1",

@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react'
-import { Input, Button, Spin, Empty, Select, Space, Card } from 'antd'
-import { SendOutlined, ClearOutlined } from '@ant-design/icons'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Input, Button, Spin, Empty, Select, Space, Card, message as antdMessage } from 'antd'
+import { SendOutlined, ClearOutlined, ApiOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { useConversationStore } from '../../stores/conversationStore'
 import { useAssistantStore } from '../../stores/assistantStore'
 import { conversationApi, openaiApi } from '../../services/api'
+import { useStreamSubscription, useWebSocket } from '../../hooks/useWebSocket'
+import { usePluginChatIntegration } from '../../plugins/opencode'
 import { Message, ChatCompletionMessage } from '../../types'
 import './Chat.css'
 
@@ -25,7 +27,22 @@ const Chat = () => {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streamingMessage, setStreamingMessage] = useState('')
+  const [useWebSocket, setUseWebSocket] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Plugin integration
+  const {
+    onMessageSent,
+    onMessageReceived,
+    onStreamChunk,
+    onThinking,
+    onToolCall,
+    handleToolCall,
+    getToolDefinitions
+  } = usePluginChatIntegration()
+
+  // WebSocket streaming
+  const { sendChatRequest, isConnected: wsConnected } = useWebSocket()
 
   useEffect(() => {
     loadAssistants()
@@ -34,6 +51,35 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom()
   }, [messages, streamingMessage])
+
+  // WebSocket stream subscription
+  useStreamSubscription(
+    currentConversation?.id || null,
+    (chunk) => {
+      setStreamingMessage(prev => prev + chunk)
+      onStreamChunk(currentConversation?.id || 0, chunk)
+    },
+    () => {
+      if (streamingMessage && currentConversation) {
+        // Save the complete message
+        conversationApi.addMessage(currentConversation.id, {
+          conversationId: currentConversation.id,
+          content: streamingMessage,
+        }).then(response => {
+          if (response.success && response.data) {
+            addMessage(response.data)
+            onMessageReceived({
+              conversationId: currentConversation.id,
+              content: streamingMessage,
+              role: 'assistant'
+            })
+          }
+        }).catch(console.error)
+      }
+      setStreamingMessage('')
+      setLoading(false)
+    }
+  )
 
   const loadAssistants = async () => {
     try {
@@ -54,7 +100,6 @@ const Chat = () => {
     const assistant = assistants.find((a) => a.id === assistantId)
     if (assistant) {
       setSelectedAssistant(assistant)
-      // Create new conversation with assistant
       try {
         const response = await conversationApi.create({ assistantId })
         if (response.success && response.data) {
@@ -83,6 +128,11 @@ const Chat = () => {
         })
         if (response.success && response.data) {
           addMessage(response.data)
+          onMessageSent({
+            conversationId: currentConversation.id,
+            content: userMessage,
+            role: 'user'
+          })
         }
       }
 
@@ -98,41 +148,111 @@ const Chat = () => {
         { role: 'user', content: userMessage },
       ]
 
+      // Get tool definitions from plugins
+      const tools = getToolDefinitions()
+
       // Stream response
       setStreamingMessage('')
-      const stream = openaiApi.streamChatCompletions({
-        model: selectedAssistant?.modelConfig
-          ? JSON.parse(selectedAssistant.modelConfig).model || 'gpt-4'
-          : 'gpt-4',
-        messages: chatMessages,
-        stream: true,
-      })
 
-      let fullContent = ''
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content
-        if (content) {
-          fullContent += content
-          setStreamingMessage(fullContent)
-        }
-      }
-
-      // Add assistant message
-      if (currentConversation && fullContent) {
-        const response = await conversationApi.addMessage(currentConversation.id, {
-          conversationId: currentConversation.id,
-          content: fullContent,
+      if (useWebSocket && wsConnected) {
+        // Use WebSocket for streaming
+        sendChatRequest(currentConversation?.id || 0, userMessage)
+      } else {
+        // Use HTTP streaming
+        const stream = openaiApi.streamChatCompletions({
+          model: selectedAssistant?.modelConfig
+            ? JSON.parse(selectedAssistant.modelConfig).model || 'gpt-4'
+            : 'gpt-4',
+          messages: chatMessages,
+          stream: true,
+          tools: tools.length > 0 ? tools : undefined,
         })
-        if (response.success && response.data) {
-          addMessage(response.data)
-        }
-      }
 
-      setStreamingMessage('')
+        let fullContent = ''
+        let thinkingContent = ''
+        let currentToolCall: { id: string; name: string; arguments: string } | null = null
+
+        for await (const chunk of stream) {
+          const delta = chunk.choices[0]?.delta
+
+          // Handle content
+          if (delta?.content) {
+            fullContent += delta.content
+            setStreamingMessage(fullContent)
+            onStreamChunk(currentConversation?.id || 0, delta.content)
+          }
+
+          // Handle thinking (Claude-style)
+          if ((delta as any)?.thinking) {
+            thinkingContent += (delta as any).thinking
+            onThinking(currentConversation?.id || 0, thinkingContent)
+          }
+
+          // Handle tool calls
+          if (delta?.toolCalls && delta.toolCalls.length > 0) {
+            for (const tc of delta.toolCalls) {
+              if (tc.id) {
+                // New tool call
+                if (currentToolCall && currentToolCall.arguments) {
+                  // Execute previous tool call
+                  await executeToolCall(currentToolCall)
+                }
+                currentToolCall = {
+                  id: tc.id,
+                  name: tc.function?.name || '',
+                  arguments: tc.function?.arguments || ''
+                }
+              } else if (currentToolCall && tc.function?.arguments) {
+                // Continue tool call arguments
+                currentToolCall.arguments += tc.function.arguments
+              }
+            }
+          }
+        }
+
+        // Execute final tool call if any
+        if (currentToolCall && currentToolCall.arguments) {
+          await executeToolCall(currentToolCall)
+        }
+
+        // Add assistant message
+        if (currentConversation && fullContent) {
+          const response = await conversationApi.addMessage(currentConversation.id, {
+            conversationId: currentConversation.id,
+            content: fullContent,
+          })
+          if (response.success && response.data) {
+            addMessage(response.data)
+            onMessageReceived({
+              conversationId: currentConversation.id,
+              content: fullContent,
+              role: 'assistant'
+            })
+          }
+        }
+
+        setStreamingMessage('')
+      }
     } catch (error) {
       console.error('Failed to send message:', error)
+      antdMessage.error('发送消息失败')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const executeToolCall = async (toolCall: { id: string; name: string; arguments: string }) => {
+    onToolCall(currentConversation?.id || 0, toolCall)
+
+    try {
+      const result = await handleToolCall(toolCall, {
+        conversationId: currentConversation?.id
+      })
+
+      // Add tool result to messages (would need backend support)
+      console.log('Tool result:', result)
+    } catch (error) {
+      console.error('Tool execution failed:', error)
     }
   }
 
@@ -140,6 +260,7 @@ const Chat = () => {
     setCurrentConversation(null)
     setMessages([])
     setSelectedAssistant(null)
+    setStreamingMessage('')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -163,6 +284,14 @@ const Chat = () => {
           <Button icon={<ClearOutlined />} onClick={handleClear}>
             清空对话
           </Button>
+          <Button
+            type={useWebSocket ? 'primary' : 'default'}
+            icon={<ThunderboltOutlined />}
+            onClick={() => setUseWebSocket(!useWebSocket)}
+            title={wsConnected ? 'WebSocket 已连接' : 'WebSocket 未连接'}
+          >
+            WebSocket
+          </Button>
         </Space>
       </div>
 
@@ -170,8 +299,8 @@ const Chat = () => {
         {messages.length === 0 && !streamingMessage ? (
           <Empty description="开始新对话" />
         ) : (
-          messages.map((message) => (
-            <MessageItem key={message.id} message={message} />
+          messages.map((msg) => (
+            <MessageItem key={msg.id} message={msg} />
           ))
         )}
         {streamingMessage && (
