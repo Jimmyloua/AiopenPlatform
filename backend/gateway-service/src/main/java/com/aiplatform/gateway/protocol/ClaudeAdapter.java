@@ -219,11 +219,11 @@ public class ClaudeAdapter extends ProtocolAdapter {
             Map<String, Object> usage = (Map<String, Object>) response.get("usage");
             if (usage != null) {
                 UnifiedChatResponse.Usage unifiedUsage = new UnifiedChatResponse.Usage();
-                unifiedUsage.setInputTokens(getInt(usage, "input_tokens"));
-                unifiedUsage.setOutputTokens(getInt(usage, "output_tokens"));
+                unifiedUsage.setPromptTokens(getInt(usage, "input_tokens"));
+                unifiedUsage.setCompletionTokens(getInt(usage, "output_tokens"));
                 unifiedUsage.setTotalTokens(
-                    (unifiedUsage.getInputTokens() != null ? unifiedUsage.getInputTokens() : 0) +
-                    (unifiedUsage.getOutputTokens() != null ? unifiedUsage.getOutputTokens() : 0)
+                    (unifiedUsage.getPromptTokens() != null ? unifiedUsage.getPromptTokens() : 0) +
+                    (unifiedUsage.getCompletionTokens() != null ? unifiedUsage.getCompletionTokens() : 0)
                 );
                 unified.setUsage(unifiedUsage);
             }
@@ -275,8 +275,8 @@ public class ClaudeAdapter extends ProtocolAdapter {
 
             if (response.getUsage() != null) {
                 Map<String, Object> usage = new LinkedHashMap<>();
-                usage.put("input_tokens", response.getUsage().getInputTokens());
-                usage.put("output_tokens", response.getUsage().getOutputTokens());
+                usage.put("input_tokens", response.getUsage().getPromptTokens());
+                usage.put("output_tokens", response.getUsage().getCompletionTokens());
                 claudeResponse.put("usage", usage);
             }
 
