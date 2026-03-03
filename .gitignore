@@ -1,0 +1,41 @@
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Build
+target/
+dist/
+build/
+out/
+
+# Dependencies
+node_modules/
+.mvn/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test
+coverage/
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp
+.cache/

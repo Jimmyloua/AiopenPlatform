@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth status 2>&1)",
+      "Bash(git init)",
+      "Bash(find /claudecode/AiopenPlatform -name \"*.env*\" -o -name \"*.key\" -o -name \"*.pem\" -o -name \"credentials*\" -o -name \"*secret*\" 2>/dev/null | head -20)",
+      "Bash(git add .)"
+    ]
+  }
+}

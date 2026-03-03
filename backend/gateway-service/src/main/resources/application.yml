@@ -1,0 +1,80 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: gateway-service
+
+  cloud:
+    gateway:
+      routes:
+        # Platform Service Routes
+        - id: platform-service-api
+          uri: lb://platform-service
+          predicates:
+            - Path=/api/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: platformCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # OpenAI Compatible API Routes
+        - id: connection-service-openai
+          uri: lb://connection-service
+          predicates:
+            - Path=/v1/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: connectionCircuitBreaker
+                fallbackUri: forward:/fallback
+
+      discovery:
+        locator:
+          enabled: false
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 1
+
+# Rate Limiting Configuration
+rate-limit:
+  enabled: true
+  default-limit: 100  # requests per minute
+  default-ttl: 60
+
+# Circuit Breaker Configuration
+resilience4j:
+  circuitbreaker:
+    instances:
+      platformCircuitBreaker:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+      connectionCircuitBreaker:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+# JWT Configuration
+jwt:
+  secret: ai-platform-jwt-secret-key-must-be-at-least-256-bits-long
+  expiration: 86400000
+
+# Logging
+logging:
+  level:
+    com.aiplatform: DEBUG
+    org.springframework.cloud.gateway: DEBUG
+
+# Springdoc OpenAPI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
