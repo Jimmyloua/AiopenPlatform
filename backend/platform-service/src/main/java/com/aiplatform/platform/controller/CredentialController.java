@@ -37,7 +37,7 @@ public class CredentialController {
 
         try {
             CredentialResponse response = credentialService.createCredential(request, userId);
-            return ResponseEntity.ok(ApiResponse.success(response, "凭证创建成功"));
+            return ResponseEntity.ok(ApiResponse.success("凭证创建成功", response));
         } catch (Exception e) {
             log.error("Failed to create credential", e);
             return ResponseEntity.badRequest()
@@ -89,7 +89,7 @@ public class CredentialController {
 
         try {
             CredentialResponse response = credentialService.regenerateSecretKey(id, userId);
-            return ResponseEntity.ok(ApiResponse.success(response, "Secret Key已重新生成"));
+            return ResponseEntity.ok(ApiResponse.success("Secret Key已重新生成", response));
         } catch (Exception e) {
             log.error("Failed to regenerate secret key", e);
             return ResponseEntity.badRequest()
@@ -110,8 +110,8 @@ public class CredentialController {
 
         try {
             CredentialResponse response = credentialService.toggleCredential(id, enabled, userId);
-            return ResponseEntity.ok(ApiResponse.success(response,
-                enabled ? "凭证已启用" : "凭证已禁用"));
+            return ResponseEntity.ok(ApiResponse.success( enabled ? "凭证已启用" : "凭证已禁用", response
+               ));
         } catch (Exception e) {
             log.error("Failed to toggle credential", e);
             return ResponseEntity.badRequest()
@@ -131,7 +131,7 @@ public class CredentialController {
 
         try {
             credentialService.deleteCredential(id, userId);
-            return ResponseEntity.ok(ApiResponse.success(null, "凭证已删除"));
+            return ResponseEntity.ok(ApiResponse.success("凭证已删除", null));
         } catch (Exception e) {
             log.error("Failed to delete credential", e);
             return ResponseEntity.badRequest()

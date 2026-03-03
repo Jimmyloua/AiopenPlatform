@@ -335,11 +335,11 @@ public class ClaudeAdapter extends ProtocolAdapter {
 
         switch (type) {
             case "content_block_delta":
-                Map<String, Object> delta = (Map<String, Object>) event.get("delta");
+                Map<String, Object> deltaInblock = (Map<String, Object>) event.get("delta");
                 if (delta != null) {
-                    String text = (String) delta.get("text");
+                    String text = (String) deltaInblock.get("text");
                     if (text != null) {
-                        ChatMessage msg = new ChatMessage();
+                        UnifiedChatResponse.ChatMessage msg = new UnifiedChatResponse.ChatMessage();
                         msg.setContent(text);
                         choice.setDelta(msg);
                     }
